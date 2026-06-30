@@ -1,2 +1,8 @@
-anthropic>=0.40.0
-pycryptodome>=3.20.0
+# GT7 AI Coach dependencies
+# Install into a clean virtual environment:  pip install -r requirements.txt
+#
+# On Apple Silicon, make sure the venv uses a native arm64 Python — an x86_64
+# interpreter will fail to load pycryptodome's compiled Salsa20 module.
+
+anthropic>=0.40.0      # Claude — generates the intro, lap summaries and corner cues
+pycryptodome>=3.20.0   # Salsa20 decryption of the GT7 telemetry stream

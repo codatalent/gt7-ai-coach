@@ -1,17 +1,18 @@
-# Secrets / environment
-.env
-.env.*
-
-# Generated at runtime
-lap_*.csv          # recorded telemetry laps
-cue_*.aiff         # generated voice cue audio
-*.aiff
-
 # Python
 __pycache__/
 *.py[cod]
 .venv/
 venv/
+*.egg-info/
+
+# Secrets
+.env
+
+# Rendered audio cues (regenerated each session)
+*.aiff
+
+# Recorded telemetry laps
+lap_*.csv
 
 # macOS
 .DS_Store
