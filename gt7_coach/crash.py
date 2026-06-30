@@ -7,7 +7,7 @@ the driver is okay, then stays quiet for a cooldown before resuming.
 
 import time
 
-from .config import CRASH_PHRASES
+from .config import CRASH_PHRASES, CRASH_MIN_SPEED, CRASH_DROP, CRASH_COOLDOWN
 from .audio import clear_queue, speak_immediate
 
 _speed_history   = []
@@ -25,8 +25,8 @@ def check_for_crash(speed, now):
         return
     hi = max(s for _, s in _speed_history)
     lo = min(s for _, s in _speed_history)
-    if hi > 37 and (hi - lo) > 50:
-        if now - _last_crash_time > 15:
+    if hi > CRASH_MIN_SPEED and (hi - lo) > CRASH_DROP:
+        if now - _last_crash_time > CRASH_COOLDOWN:
             _last_crash_time = now
             phrase = CRASH_PHRASES[_crash_idx % len(CRASH_PHRASES)]
             _crash_idx += 1

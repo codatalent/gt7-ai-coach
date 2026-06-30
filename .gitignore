@@ -5,8 +5,9 @@ __pycache__/
 venv/
 *.egg-info/
 
-# Secrets
+# Secrets / local settings
 .env
+config.yaml
 
 # Rendered audio cues (regenerated each session)
 *.aiff

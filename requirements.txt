@@ -6,3 +6,4 @@
 
 anthropic>=0.40.0      # Claude — generates the intro, lap summaries and corner cues
 pycryptodome>=3.20.0   # Salsa20 decryption of the GT7 telemetry stream
+PyYAML>=6.0            # reads config.yaml

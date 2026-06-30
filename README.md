@@ -66,8 +66,17 @@ pip install -r requirements.txt
 export ANTHROPIC_API_KEY="sk-ant-..."
 ```
 
-Then point it at your console: open `gt7_coach/config.py` and set `PS5_IP` to
-your PlayStation's IP address on your network.
+Then point it at your console. Copy the example config and set your PS5's IP:
+
+```bash
+cp config.example.yaml config.yaml
+# edit config.yaml — set ps5_ip to your PlayStation's IP on your network
+```
+
+`config.yaml` holds everything you'd normally want to change (IP, model, cue
+timings, crash thresholds) and is gitignored so your settings stay local. Leave
+anything out and it falls back to the built-in defaults. In a pinch you can also
+override just the IP with `GT7_PS5_IP=192.168.1.50 python main.py`.
 
 ## Run
 
@@ -93,6 +102,7 @@ gt7_coach/
   crash.py       Rolling-window crash detection
   storage.py     Loading previous laps from CSV for the session intro
 main.py          Entry point — wires it together and runs the main loop
+config.example.yaml  Template config — copy to config.yaml and edit
 tools/
   lap_compare.py A standalone offline lap-vs-lap comparator
 ```

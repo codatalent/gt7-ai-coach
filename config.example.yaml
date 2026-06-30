@@ -1,0 +1,31 @@
+# GT7 AI Coach configuration.
+#
+# Copy this file to config.yaml and edit it for your setup:
+#     cp config.example.yaml config.yaml
+#
+# config.yaml is gitignored, so your settings (and your PS5's IP) stay local.
+# Anything you leave out falls back to the built-in defaults.
+
+# Your PlayStation's IP address on your local network.
+ps5_ip: "192.168.1.248"
+
+# Anthropic model used to generate the coaching.
+model: "claude-opus-4-5"
+
+# Cue timing.
+cue:
+  lead_time: 2.5          # seconds before a corner a cue should finish landing
+  fallback_duration: 3.5  # assumed cue length when it can't be measured
+  max_per_lap: 3          # across both halves combined
+  next_n_corners: 2       # only ever cue this many corners ahead
+
+# Telemetry ports (rarely need changing).
+ports:
+  send: 33739             # heartbeat port the PS5 listens on
+  recv: 33740             # port the telemetry stream arrives on
+
+# Crash detection.
+crash:
+  min_speed_mph: 37       # only treat a sudden drop as a crash above this speed
+  drop_mph: 50            # speed drop within ~1s that counts as a crash
+  cooldown_s: 15          # don't re-trigger a crash check within this window
