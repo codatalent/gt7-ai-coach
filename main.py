@@ -55,9 +55,17 @@ previous_laps    = []
 
 # ── BACKGROUND THREADS ───────────────────────────────────────────────────────
 def send_heartbeat(sock):
-    """Keep the PS5 sending telemetry by pinging it ten times a second."""
+    """Keep the PS5 sending telemetry by pinging it ten times a second.
+
+    If the PS5 is unreachable (off, asleep or a changed IP) the send raises
+    "no route to host". We stay quiet here — the main loop surfaces one clear,
+    friendly message on its receive timeout instead of spamming the console.
+    """
     while True:
-        sock.sendto(b"A", (PS5_IP, SEND_PORT))
+        try:
+            sock.sendto(b"A", (PS5_IP, SEND_PORT))
+        except OSError:
+            pass
         threading.Event().wait(0.1)
 
 
@@ -129,6 +137,22 @@ def run_second_half_and_summary(lap_a, lap_b, lap_num, lap_time):
         print(f"  Second half analysis error: {e}")
 
 
+# ── FRIENDLY ERRORS ──────────────────────────────────────────────────────────
+def _no_telemetry_message():
+    """Plain-English 'can't reach the PS5' guidance — no stack traces."""
+    print("\n" + "─" * 50)
+    print(f"❌  No telemetry from your PlayStation at {PS5_IP}.")
+    print("    Nothing's wrong with the coach — it just can't see the console.")
+    print("    Check these, then relaunch:")
+    print("      1. The PS5 is on and awake (not in rest mode).")
+    print("      2. Gran Turismo 7 is running and you're in a race or time trial.")
+    print(f"      3. The PS5's IP is still {PS5_IP}.")
+    print("         If your router changed it, update ps5_ip in config.yaml.")
+    print("         Find it on the PS5: Settings → Network → Connection Status")
+    print("         → View Connection Status → IP Address.")
+    print("─" * 50)
+
+
 # ── MAIN LOOP ────────────────────────────────────────────────────────────────
 def main():
     global current_lap, lap_data, lap_start_time, cue_state, corner_passed
@@ -143,16 +167,23 @@ def main():
     threading.Thread(target=send_heartbeat, args=(sock,), daemon=True).start()
 
     previous_laps = load_previous_laps()
-    threading.Thread(target=deliver_intro, daemon=True).start()
-    threading.Thread(target=warmup_chatter, daemon=True).start()
 
     print("GT7 AI Coach — Leighton is ready for Nick")
     print("Laps 1-2: Recording silently | Lap 3+: Coaching active")
     print("First half cues pipeline after S2 | Second half after lap end\n")
+    print(f"Waiting for telemetry from GT7 at {PS5_IP}…  (Ctrl-C to stop)")
 
+    got_first_packet = False
     while True:
         try:
             data, addr = sock.recvfrom(4096)
+            if not got_first_packet:
+                got_first_packet = True
+                print("Telemetry connected — Leighton is live.\n")
+                # Start the intro + warm-up chatter only once data is flowing,
+                # so we never burn an API call talking to an empty room.
+                threading.Thread(target=deliver_intro, daemon=True).start()
+                threading.Thread(target=warmup_chatter, daemon=True).start()
             d     = decrypt(data)
             p     = parse(d)
             x, z  = p["pos_x"], p["pos_z"]
@@ -273,6 +304,20 @@ def main():
 
             print(f"Lap: {p['lap']} | {speed:.1f} mph | Pos: ({x:.0f}, {z:.0f})", end="\r")
 
+        except TimeoutError:
+            # No telemetry for a while. Before the first packet this means we
+            # can't reach the PS5 at all; mid-session it usually just means the
+            # game is paused or in a menu, so we wait rather than quit.
+            if not got_first_packet:
+                _no_telemetry_message()
+                break
+            print("\n  …telemetry paused (menu or between sessions). "
+                  "Still here — Ctrl-C to stop.")
+            continue
+        except OSError:
+            # Network dropped or the PS5 went away mid-session.
+            _no_telemetry_message()
+            break
         except KeyboardInterrupt:
             print("\nLeighton signing off. Good session Nick.")
             break
