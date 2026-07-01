@@ -31,6 +31,16 @@ DEFAULTS = {
     },
     "ports": {"send": 33739, "recv": 33740},
     "crash": {"min_speed_mph": 37, "drop_mph": 50, "cooldown_s": 15},
+    "track": {
+        "dir": "tracks",              # where learned circuits are saved
+        "corner_radius": 40,          # how close (m) counts as "in" a corner
+        "sector_radius": 50,          # sector-gate trigger radius (m)
+        "min_corner_separation_m": 40,  # merge apexes closer than this
+        "speed_smooth_window": 15,    # packets averaged when finding corners
+        "min_corner_prominence_mph": 8,  # min speed dip that counts as a corner
+        "match_length_tol": 0.08,     # lap-length tolerance when recognising a track
+        "match_extent_tol": 0.10,     # track-extent tolerance when recognising
+    },
 }
 
 
@@ -108,6 +118,16 @@ NEXT_N_CORNERS   = _cfg["cue"]["next_n_corners"]
 CRASH_MIN_SPEED = _cfg["crash"]["min_speed_mph"]
 CRASH_DROP      = _cfg["crash"]["drop_mph"]
 CRASH_COOLDOWN  = _cfg["crash"]["cooldown_s"]
+
+# ── TRACK LEARNING ───────────────────────────────────────────────────────────
+TRACKS_DIR                = _cfg["track"]["dir"]
+CORNER_RADIUS             = _cfg["track"]["corner_radius"]
+SECTOR_RADIUS             = _cfg["track"]["sector_radius"]
+MIN_CORNER_SEP_M          = _cfg["track"]["min_corner_separation_m"]
+SPEED_SMOOTH_WINDOW       = _cfg["track"]["speed_smooth_window"]
+MIN_CORNER_PROMINENCE_MPH = _cfg["track"]["min_corner_prominence_mph"]
+TRACK_MATCH_LENGTH_TOL    = _cfg["track"]["match_length_tol"]
+TRACK_MATCH_EXTENT_TOL    = _cfg["track"]["match_extent_tol"]
 
 # ── ENGINEER VOICE ───────────────────────────────────────────────────────────
 # Canned content rather than settings, so these stay in code.

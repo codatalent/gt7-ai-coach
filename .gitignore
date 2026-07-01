@@ -15,5 +15,8 @@ config.yaml
 # Recorded telemetry laps
 lap_*.csv
 
+# Learned circuit maps (built from your own laps)
+tracks/
+
 # macOS
 .DS_Store

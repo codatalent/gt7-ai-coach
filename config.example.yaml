@@ -29,3 +29,17 @@ crash:
   min_speed_mph: 37       # only treat a sudden drop as a crash above this speed
   drop_mph: 50            # speed drop within ~1s that counts as a crash
   cooldown_s: 15          # don't re-trigger a crash check within this window
+
+# Track learning. The circuit is learned from your opening lap and saved to
+# `dir`; you rarely need to touch these. Nudge them if corner detection misses
+# tight corners (lower prominence) or invents corners on a bumpy straight (raise
+# prominence / separation).
+track:
+  dir: "tracks"                   # where learned circuits are saved
+  corner_radius: 40               # how close (m) counts as "in" a corner
+  sector_radius: 50               # sector-gate trigger radius (m)
+  min_corner_separation_m: 40     # merge apexes closer together than this
+  speed_smooth_window: 15         # telemetry packets averaged when finding corners
+  min_corner_prominence_mph: 8    # smallest speed dip that counts as a corner
+  match_length_tol: 0.08          # lap-length tolerance when recognising a track
+  match_extent_tol: 0.10          # track-size tolerance when recognising a track

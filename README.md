@@ -8,8 +8,9 @@ Built by a recruiter, not an engineer, as a "is this actually possible?" project
 It turned out to be possible. The story behind it is
 [here on LinkedIn](https://www.linkedin.com/in/nickyockney).
 
-> **Status:** working prototype. One track (Laguna Seca), one car (Porsche 911
-> GT3 R). Teaching it more circuits is the next job — see [Roadmap](#roadmap).
+> **Status:** working prototype. It now **learns any circuit** from a single
+> lap and remembers it — no more hand-typed corners. Tuned around the Porsche 911
+> GT3 R. See [Roadmap](#roadmap).
 
 ## Demo
 
@@ -32,7 +33,9 @@ a few steps:
    out of the fixed binary layout.
 3. **Locate** — match the car's coordinates against a map of the circuit. Each
    corner is a point with a radius, so the system always knows which corner is
-   coming and which one just passed.
+   coming and which one just passed. That map isn't typed in — it's **learned
+   from your opening lap** (see [Learning a track](#learning-a-track)) and saved,
+   so any circuit works and it's only learned once.
 4. **Compare** — for each corner, work out minimum speed, entry speed and where
    braking began, then compare against the previous lap to find the delta.
 5. **Coach** — Claude turns the worst two or three corners into one calm line of
@@ -41,14 +44,35 @@ a few steps:
 
 Two details that make it feel right:
 
-- **Pipelined analysis.** The lap is split in half. The first half is analysed at
-  the Corkscrew while you're still driving the second, so coaching for the next
-  lap is ready the moment you cross the line instead of arriving late.
+- **Pipelined analysis.** The lap is split in half. The first half is analysed
+  around the midpoint while you're still driving the second, so coaching for the
+  next lap is ready the moment you cross the line instead of arriving late.
 - **Crash detection.** A rolling one-second window of speed catches a big sudden
   drop, stops the coaching, and checks you're okay before picking back up.
 
-The first two laps of any session it stays quiet and records a baseline. Coaching
-goes live from lap three.
+Your opening lap is the **learn lap** — it maps the circuit (or recognises one
+you've driven before). The next two laps it stays quiet and records a baseline.
+Coaching goes live from lap three.
+
+## Learning a track
+
+The corner map used to be typed in by hand for one circuit. Now the coach builds
+it from telemetry:
+
+- **On your first lap**, it reads the speed trace, finds the corners (the places
+  you slow and turn), orders them, splits them into two halves for the pipeline,
+  and drops three sector gates. That's the track learned — it takes one lap.
+- **It saves the map** to `tracks/` and tags it with a geometry fingerprint (lap
+  length plus the track's overall size). Next time you drive that circuit it's
+  recognised automatically and loaded instantly — you never learn it twice.
+- **Names are generic** at first (Turn 1, Turn 2…). Each track is a small JSON
+  file in `tracks/`, so you can rename corners once and it sticks ("Corkscrew"
+  beats "Turn 5").
+
+Give it one clean, representative opening lap — a spin or an off will give it a
+scrappy map. If it can't map a lap it says so and stays quiet rather than coach
+off a bad map. Detection thresholds (corner sensitivity, spacing) live under
+`track:` in `config.yaml` if you ever need to nudge them.
 
 ## Setup
 
@@ -109,9 +133,10 @@ tools/
 
 ## Roadmap
 
-- **More tracks and cars.** Right now the circuit map is hand-built for one
-  track. The aim is to learn a track automatically from a clean lap instead of
-  typing in coordinates.
+- **~~Learn any track.~~** ✅ Done — the circuit map is now learned from your
+  opening lap and saved, instead of typed in by hand.
+- **Named corners out of the box.** Auto-name well-known corners instead of the
+  generic Turn 1, Turn 2… so the radio calls sound native on famous circuits.
 - **Learn the driver.** Pick up your style over time rather than only comparing
   you against your own last lap.
 - **Coach towards a perfect lap.** Pull in reference data so it can coach you

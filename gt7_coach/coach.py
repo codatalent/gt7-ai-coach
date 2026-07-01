@@ -16,7 +16,7 @@ import anthropic
 
 from .config import MODEL
 from .telemetry import format_time, format_time_s
-from .track import CORNERS, get_corner_stats, get_brake_dist
+from .track import get_corner_stats, get_brake_dist
 from .storage import get_session_stats
 
 
@@ -26,37 +26,27 @@ def _client():
 
 # ── LAP 1 INTRO ──────────────────────────────────────────────────────────────
 def generate_intro(laps):
-    """Build the start-of-session radio intro from previous-session laps."""
+    """Build the start-of-session radio intro from previous-session laps.
+
+    Fires before the first lap is complete, so the circuit isn't known yet —
+    the coach learns the track from lap 1 and reads the corners from lap 3.
+    """
     fastest_ms, total_laps = get_session_stats(laps)
     fastest_str = format_time(fastest_ms) if fastest_ms else "no time on record"
 
     if laps:
-        # Build corner summary from best recent laps
-        summaries = []
-        for lap in laps[-3:]:
-            cs = {}
-            for name, corner in CORNERS.items():
-                s = get_corner_stats(lap, corner)
-                if s:
-                    cs[name] = {"corner_name": corner["name"], "min_speed_mph": s["min_speed_mph"]}
-            summaries.append(cs)
-
         prompt = f"""You are Leighton, a GT3 race engineer. Your driver is Nick.
 
-Nick is starting a new session at Laguna Seca in the Porsche 911 GT3 R.
+Nick is starting a new session in the Porsche 911 GT3 R.
 
 Previous session stats:
 - Total laps completed: {total_laps}
 - Fastest lap: {fastest_str}
 
-Corner speed data from last {len(summaries)} laps (mph):
-{json.dumps(summaries, indent=2)}
-
-Give Nick a lap 1 introduction — 5 to 7 sentences. Include:
+Give Nick a lap 1 introduction — 4 to 6 sentences. Include:
 - A warm greeting by name
 - His fastest lap time and total laps completed
-- A brief read of which corners are strong and which need work
-- One or two specific things to focus on this session
+- That you'll read the track on the opening lap, run two warm-up laps, then coaching goes live from lap three
 - An encouraging send-off
 
 Warm, professional race engineer tone. Natural, like team radio at the start of a session.
@@ -64,9 +54,9 @@ Respond with ONLY the spoken text."""
     else:
         prompt = """You are Leighton, a GT3 race engineer. Your driver is Nick.
 
-Nick is starting his first ever session at Laguna Seca in the Porsche 911 GT3 R. No previous data exists.
+Nick is starting a session in the Porsche 911 GT3 R on a circuit you haven't seen before. No previous data exists.
 
-Give him a warm welcome — 3 to 4 sentences. Tell him you'll be building a baseline today, two warm-up laps then coaching goes live, and wish him luck.
+Give him a warm welcome — 3 to 4 sentences. Tell him you'll learn the track on his opening lap, run two warm-up laps to build a baseline, then coaching goes live from lap three, and wish him luck.
 
 Respond with ONLY the spoken text."""
 
@@ -101,9 +91,10 @@ Respond with ONLY the spoken text."""
 
 
 # ── CORNER CUE GENERATION ────────────────────────────────────────────────────
-def analyse_corners(lap_a, lap_b, lap_num, corner_keys, half_label):
+def analyse_corners(lap_a, lap_b, lap_num, corner_keys, half_label, corners):
     """Compare two laps over a subset of corners and generate spoken cues.
 
+    ``corners`` is the learned track's corner map ({key: {pos, radius, name}}).
     Returns a {corner_key: cue_text} dict for the (up to two) corners in this
     half where the driver lost the most time.
     """
@@ -112,7 +103,7 @@ def analyse_corners(lap_a, lap_b, lap_num, corner_keys, half_label):
     deltas      = {}
 
     for name in corner_keys:
-        corner = CORNERS[name]
+        corner = corners[name]
         sa     = get_corner_stats(lap_a, corner)
         sb     = get_corner_stats(lap_b, corner)
         if sa and sb:

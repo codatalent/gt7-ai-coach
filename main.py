@@ -20,7 +20,7 @@ from gt7_coach.config import (
 )
 from gt7_coach.crypto import decrypt
 from gt7_coach.telemetry import parse, dist, time_to_corner
-from gt7_coach.track import CORNERS, SECTORS, CORNER_ORDER, FIRST_HALF, SECOND_HALF
+from gt7_coach.track import learn_or_load
 from gt7_coach.audio import (
     start_audio_worker, play_file, speak, speak_immediate, get_audio_duration,
     generate_audio,
@@ -49,6 +49,7 @@ session_start    = time.time()
 warmup_spoken    = []
 s2_triggered     = False  # has first-half analysis been triggered this lap
 
+TRACK            = None   # the learned circuit — set after the first full lap
 previous_laps    = []
 
 
@@ -83,7 +84,9 @@ def warmup_chatter():
 
 
 def get_next_corners(passed_set, n=NEXT_N_CORNERS):
-    return [c for c in CORNER_ORDER if c not in passed_set][:n]
+    if TRACK is None:
+        return []
+    return [c for c in TRACK.corner_order if c not in passed_set][:n]
 
 
 # ── PIPELINED ANALYSIS ───────────────────────────────────────────────────────
@@ -91,7 +94,7 @@ def run_first_half(lap_a, lap_b, lap_num):
     """Triggered at S2 crossing — analyses T1-T4, ready on the Andretti straight."""
     global active_cues, cue_durations, coaching_active
     try:
-        cues  = analyse_corners(lap_a, lap_b, lap_num, FIRST_HALF, "first half")
+        cues  = analyse_corners(lap_a, lap_b, lap_num, TRACK.first_half, "first half", TRACK.corners)
         files = generate_audio(cues, lap_num, suffix="_fh")
         durs  = {c: get_audio_duration(f) for c, f in files.items()}
         with analysis_lock:
@@ -115,7 +118,7 @@ def run_second_half_and_summary(lap_a, lap_b, lap_num, lap_time):
         if best_lap is None or lap_time < best_lap:
             best_lap = lap_time
 
-        cues  = analyse_corners(lap_a, lap_b, lap_num, SECOND_HALF, "second half")
+        cues  = analyse_corners(lap_a, lap_b, lap_num, TRACK.second_half, "second half", TRACK.corners)
         files = generate_audio(cues, lap_num, suffix="_sh")
         durs  = {c: get_audio_duration(f) for c, f in files.items()}
         with analysis_lock:
@@ -130,7 +133,7 @@ def run_second_half_and_summary(lap_a, lap_b, lap_num, lap_time):
 def main():
     global current_lap, lap_data, lap_start_time, cue_state, corner_passed
     global sector_state, s2_triggered, active_cues, cue_durations, coaching_active
-    global previous_laps
+    global previous_laps, TRACK
 
     start_audio_worker()
 
@@ -164,7 +167,23 @@ def main():
                     lap_time_val = p["last_lap"] / 1000.0 if p["last_lap"] > 0 else 0
                     lap_history[current_lap] = lap_data
 
-                    if current_lap >= 2 and (current_lap - 1) in lap_history:
+                    # First full lap → learn the circuit (or recognise a saved one).
+                    if TRACK is None:
+                        try:
+                            TRACK, recognised = learn_or_load(lap_data)
+                            if recognised:
+                                tmsg = (f"Recognised {TRACK.name}, {len(TRACK.corners)} corners "
+                                        f"loaded. Coaching from lap three.")
+                            else:
+                                tmsg = (f"Track learned, {len(TRACK.corners)} corners mapped and "
+                                        f"saved as {TRACK.name}. Coaching from lap three.")
+                            print(f"\n[Track] {tmsg}")
+                            speak(tmsg)
+                        except Exception as e:
+                            print(f"\n[Track] Couldn't map the track this lap ({e}) — "
+                                  "coaching stays off until a clean lap is driven.")
+
+                    if current_lap >= 2 and (current_lap - 1) in lap_history and TRACK is not None:
                         threading.Thread(
                             target=run_second_half_and_summary,
                             args=(lap_history[current_lap - 1], lap_history[current_lap],
@@ -175,9 +194,9 @@ def main():
                 current_lap    = p["lap"]
                 lap_data       = []
                 lap_start_time = now
-                cue_state      = {name: False for name in CORNERS}
+                cue_state      = {name: False for name in (TRACK.corners if TRACK else {})}
                 corner_passed  = set()
-                sector_state   = {s: False for s in SECTORS}
+                sector_state   = {s: False for s in (TRACK.sectors if TRACK else {})}
                 s2_triggered   = False
                 # Clear cues at lap start — a fresh set is built by the pipeline
                 with analysis_lock:
@@ -192,8 +211,8 @@ def main():
             lap_data.append(p)
 
             # ── SECTOR TIMING + S2 PIPELINE TRIGGER ───────────────────────────
-            if lap_start_time and current_lap > 0:
-                for sname, sector in SECTORS.items():
+            if lap_start_time and current_lap > 0 and TRACK is not None:
+                for sname, sector in TRACK.sectors.items():
                     cx, cz = sector["pos"]
                     if dist(x, z, cx, cz) < sector["radius"] and not sector_state[sname]:
                         sector_state[sname] = True
@@ -212,7 +231,7 @@ def main():
                         else:
                             best_sectors[sname] = elapsed
 
-                        snum = list(SECTORS.keys()).index(sname) + 1
+                        snum = list(TRACK.sectors.keys()).index(sname) + 1
                         speak(f"Sector {snum}, {elapsed:.1f}{delta_str}")
                         print(f"  [S{snum}] {elapsed:.1f}s{delta_str}")
 
@@ -231,17 +250,18 @@ def main():
                                     print("  [Pipeline] First half analysis triggered at S2")
 
             # ── MARK CORNERS PASSED ───────────────────────────────────────────
-            for name, corner in CORNERS.items():
-                if dist(x, z, corner["pos"][0], corner["pos"][1]) < corner["radius"]:
-                    corner_passed.add(name)
+            if TRACK is not None:
+                for name, corner in TRACK.corners.items():
+                    if dist(x, z, corner["pos"][0], corner["pos"][1]) < corner["radius"]:
+                        corner_passed.add(name)
 
             # ── SMART CORNER CUES — next 2 only ───────────────────────────────
-            if coaching_active and active_cues:
+            if TRACK is not None and coaching_active and active_cues:
                 next_corners = get_next_corners(corner_passed)
                 for name in next_corners:
                     if name not in active_cues or cue_state.get(name):
                         continue
-                    corner = CORNERS[name]
+                    corner = TRACK.corners[name]
                     cx, cz = corner["pos"]
                     d_to   = dist(x, z, cx, cz)
                     ttc    = time_to_corner(d_to, speed)
